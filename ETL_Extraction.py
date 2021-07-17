@@ -20,6 +20,10 @@ character_entries = []
 
 entry_index = 0
 
+output_directory = "SlicedData"
+png_folder = os.path.join(output_directory, "png")
+gt_file = os.path.join(output_directory, "gt.txt")
+
 def extractImages(csv_file, png_files, disable_thresholding):
     character_entries.clear()
     print("opening ", csv_file)
@@ -29,9 +33,9 @@ def extractImages(csv_file, png_files, disable_thresholding):
         for row in reader:
             character_entries.append(row['Character Code'].strip())
     
-    if not os.path.exists("SlicedData/test"):
-        os.mkdir("SlicedData")
-        os.mkdir("SlicedData/test")
+    if not os.path.exists(png_folder):
+        os.mkdir(output_directory)
+        os.mkdir(png_folder)
 
     png_index = 1
     global entry_index
@@ -41,10 +45,10 @@ def extractImages(csv_file, png_files, disable_thresholding):
     img = cv.imread(png_file_location + png_files[0])
     
     kernel = np.ones((2,2), np.uint8)
-    with open("SlicedData/gt.txt", "a") as gt_file:
+    with open(gt_file, "a") as file:
         for entry in character_entries:
             new_png_name = str(entry_index)+"_"+entry+".png"
-            new_png_path = "SlicedData/test/" + new_png_name
+            new_png_path = os.path.join(png_folder, new_png_name)
             
             sub_png_img = img[y:y+63, x:x+64]
             if not disable_thresholding:
@@ -58,7 +62,7 @@ def extractImages(csv_file, png_files, disable_thresholding):
             # cv.destroyAllWindows()
 
             cv.imwrite(new_png_path, dilation)
-            gt_file.writelines(new_png_path + "\t" + entry + "\n")
+            file.writelines(new_png_path + "\t" + entry + "\n")
             entry_index = entry_index + 1
             x = x + 64
             if x == 3200:
@@ -83,9 +87,9 @@ def newExtractImages(csv_file, png_files):
         for row in reader:
             character_entries.append(row['Character Code'].strip())
     
-    if not os.path.exists("SlicedData/test"):
-        os.mkdir("SlicedData")
-        os.mkdir("SlicedData/test")
+    if not os.path.exists(png_folder):
+        os.mkdir(output_directory)
+        os.mkdir(png_folder)
 
     png_index = 1
     global entry_index
@@ -94,19 +98,19 @@ def newExtractImages(csv_file, png_files):
 
     img = cv.imread(png_file_location + png_files[0])
     kernel = np.ones((2,2), np.uint8)
-    with open("SlicedData/gt.txt", "a") as gt_file:
+    with open(gt_file, "a") as file:
         for entry in character_entries:
             new_png_name = str(entry_index)+"_"+entry+".png"
-            new_png_path = "SlicedData/test/" + new_png_name
+            new_png_path = os.path.join(png_folder, new_png_name)
             
             sub_png_img = img[y:y+63, x:x+64]
-            sub_png_img = cv.cvtColor(sub_png_img, cv.COLOR_BGR2GRAY)
-            
-            denoised_img = cv.fastNlMeansDenoising(sub_png_img, None, h=40)
-            adapt_thresh = cv.adaptiveThreshold(denoised_img, 255,
-                                   cv.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                   cv.THRESH_BINARY, 23, -2)
-            dilation_adapt_thresh = cv.dilate(adapt_thresh, kernel, iterations=1)
+            #sub_png_img = cv.cvtColor(sub_png_img, cv.COLOR_BGR2GRAY)
+            #
+            #denoised_img = cv.fastNlMeansDenoising(sub_png_img, None, h=40)
+            #adapt_thresh = cv.adaptiveThreshold(denoised_img, 255,
+            #                       cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+            #                       cv.THRESH_BINARY, 23, -2)
+            #dilation_adapt_thresh = cv.dilate(adapt_thresh, kernel, iterations=1)
             
             #ret, hard_thresh = cv.threshold(sub_png_img, 150, 255, cv.THRESH_BINARY)
             #dilation_hard_thresh = cv.dilate(hard_thresh, kernel, iterations=1)
@@ -121,8 +125,10 @@ def newExtractImages(csv_file, png_files):
             #cv.waitKey()
             #cv.destroyAllWindows()
 
-            cv.imwrite(new_png_path, dilation_adapt_thresh)
-            gt_file.writelines(new_png_path + "\t" + entry + "\n")
+            #cv.imwrite(new_png_path, dilation_adapt_thresh)
+            cv.imwrite(new_png_path, sub_png_img)
+            
+            file.writelines(new_png_path + "\t" + entry + "\n")
             entry_index = entry_index + 1
             x = x + 64
             if x == 3200:
@@ -134,9 +140,6 @@ def newExtractImages(csv_file, png_files):
                     png_index = png_index + 1    
 
 if __name__ == "__main__":
-
-    
-
     newExtractImages(csv_file_1, png_files_1)
     newExtractImages(csv_file_2, png_files_2)
     newExtractImages(csv_file_3, png_files_3)
