@@ -93,9 +93,8 @@ def RefitIntoOriginalImage(img, roi_img):
 
 # https://www.tutorialkart.com/opencv/python/opencv-python-resize-image/
 def CreateROIScaledImage(img, roi, scalar):
-    print("Resizing ROI")
-
-    cv.imshow("Resizing ROI Before {}".format(scalar), img)
+    # print("Resizing ROI")
+    # cv.imshow("Resizing ROI Before {}".format(scalar), img)
 
     x_dim = roi[1] - roi[0]
     y_dim = roi[3] - roi[2]
@@ -118,10 +117,11 @@ def CreateROIScaledImage(img, roi, scalar):
 
     new_img = RefitIntoOriginalImage(img, new_roi)
 
-    cv.imshow("Resizing ROI After {}".format(scalar), new_img)
+    # cv.imshow("Resizing ROI After {}".format(scalar), new_img)
+    return new_img
 
 def CreateTiltedImage(img, roi_dim, tilt_value):
-    cv.imshow("CreateTiltedImage Before {}".format(tilt_value), img)
+    # cv.imshow("CreateTiltedImage Before {}".format(tilt_value), img)
     roi_center = tuple(np.array([roi_dim[3],roi_dim[1]])/2)
     # https://stackoverflow.com/questions/9041681/opencv-python-rotate-image-by-x-degrees-around-specific-point
     # by: nicodjimenez
@@ -137,7 +137,9 @@ def CreateTiltedImage(img, roi_dim, tilt_value):
     
     new_img = RefitIntoOriginalImage(img, new_roi_copy)
 
-    cv.imshow("CreateTiltedImage After {}".format(tilt_value), new_img)
+    # cv.imshow("CreateTiltedImage After {}".format(tilt_value), new_img)
+
+    return new_img
 
 
 if __name__ == "__main__":
