@@ -1,0 +1,75 @@
+
+#import numpy as np
+#import cv2 as cv
+#import math
+
+# This script provides python implementation
+# for various image processing methods.
+# Some of these methods are meant to either be
+# a proof of concepts or to be applied to
+# the dataset.
+
+#target_image = "Sample_A.png"
+#flip_blackwhite = False
+
+# def RescaleROI(img, roi, dimension_limit):
+#     print("Resizing ROI")  
+#     x_dim = roi[1] - roi[0]
+#     y_dim = roi[3] - roi[2]
+#     # get copy of ROI
+#     roi = img[roi[2]:roi[3], roi[0]:roi[1]]
+#     # check if we need to even scale at all
+#     if x_dim == dimension_limit or y_dim == dimension_limit:
+#         return roi
+#     dim_limiter = 0
+#     if x_dim > y_dim:
+#         dim_limiter = x_dim
+#     elif x_dim < y_dim:
+#         dim_limiter = y_dim
+#     else:
+#         dim_limiter = x_dim
+#     scale_value = dimension_limit/dim_limiter
+#     print("Scale Value: ", scale_value)
+#     new_x = math.floor(x_dim * scale_value)
+#     new_y = math.floor(y_dim * scale_value)
+#     print("New dimensions: ({}, {})".format(new_x, new_y))
+#     roi_rescale = cv.resize(roi, (new_y, new_x))
+#     ret, thresh = cv.threshold(roi_rescale, 80, 255, cv.THRESH_BINARY)
+#     # cv.imshow("Before", roi)
+#     # cv.imshow("After", thresh)
+#     # cv.waitKey(0)
+#     # cv.destroyAllWindows()
+#     return thresh
+
+# def createNewImage(roi, height, width):
+#     # Create base black image of original dimensions
+#     base_image = np.zeros((height, width), np.uint8)
+#     # Now we find the position to place the ROI.
+#     # first we calculate the half dimension on base_image
+#     # then calculate the half dimension on ROI.
+#     # Lastly, we take the half dimension of base - half dimension of ROI.
+#     half_height = height/2
+#     half_width = width/2
+#     roi_height, roi_width = roi.shape
+#     roi_half_height = roi_height / 2
+#     roi_half_width = roi_width / 2
+#     wriggle = math.floor(half_height - roi_half_height)
+#     margin = math.floor(math.sqrt(height) + math.sqrt(wriggle)) # Something that scale with image fairly well.
+#     position_height = math.floor(half_height-roi_half_height)
+#     position_width = math.floor(half_width-roi_half_width)
+#     # print(half_height, half_width)
+#     # print(roi_height, roi_width, roi_half_height, roi_half_width)
+#     # print(position_height, position_width)
+#     # print("Radius of Base image = ", half_height)
+#     # print("Radius of ROI image = ", roi_half_height)
+#     # print("Wriggle room of ROI in Base image = ", wriggle)
+#     # print("Margin room of ROI in Base image = ", margin)
+#     locations = [ \
+#         (position_height, position_width), # Center
+#         (position_height - wriggle + margin, position_width), # Top
+#         (position_height + wriggle - margin, position_width), # Bottom
+#         (position_height, position_width - wriggle + margin), # Left
+#         (position_height, position_width + wriggle - margin) # Right
+#     ]
+#     for locale in locations:
+#         translocateROI(roi.copy(), base_image.copy(), locale[0], locale[1])
