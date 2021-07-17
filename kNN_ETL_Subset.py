@@ -1,31 +1,37 @@
-from ImageRoiRescaling import FindROI
-
 import math
+from cv2 import data
 import numpy as np
 import cv2 as cv
 import os
-import regex
+import re
 import shutil
+
+from TransformationMethods import FindROI, LoadImage, RefitIntoOriginalImage, CreateROIScaledImage, CreateTiltedImage
 
 png_loading_location = "NEWDATA/test/"
 target_location = "TargetSubset/"
-png_target_location = "TargetSubset/pngs"
-knn_file = "TargetSubset/kNN_ETL_Subset.opknn"
-dict_file = "TargetSubset/knnDictionary.txt"
+training_location = target_location + "training/"
+testing_location = target_location + "testing/"
+
+knn_file = target_location + "kNN_ETL_Subset.opknn"
+dict_file = target_location + "knnDictionary.txt"
 
 # We will be loading only 10 characters identified by their
 # pronunciation.
 target_characters = ["A", "I", "U", "E", "O", "KA", "N", "TA", "ME", "WA"]
-total_png_per_char = 200
+total_png_testing_chars = 25
+total_png_training_chars = 200 - total_png_testing_chars
 
 # Some globals to influence image transformation.
 target_dimensions = 32
-perform_threshold = True
-threshold_value = 80
+disable_threshold = False
+threshold_value = 50
 
+target_tilt = 6.0
 
-def trainKNNSubset():
-    print("Loading {} target png of characters: {}".format(total_png_per_char, target_characters))
+def CreateSubsetDirectory():
+    print("Loading {} training and {} test images of characters: {}".format(total_png_training_chars, \
+        total_png_testing_chars, target_characters))
 
     if not os.path.exists(png_loading_location):
         print("Location to load pngs from does not exist. Exiting")
@@ -33,57 +39,64 @@ def trainKNNSubset():
 
     if not os.path.exists(target_location):
         os.mkdir(target_location)
-        os.mkdir(png_target_location)
+        os.mkdir(training_location)
+        os.mkdir(testing_location)
 
     for character in target_characters:
-        re = regex.compile(r"\d*_{}.png".format(character))
-        current_total = 0
+        regex = re.compile(r"\d*_{}.png".format(character))
+        current_train_img_total = 0
+        current_test_img_total = 0
         for pngs in os.listdir(png_loading_location):
-            if re.fullmatch(pngs) is not None:
-                # print(os.path.join(os.path.abspath(png_loading_location), pngs))
-                shutil.copy(os.path.join(os.path.abspath(png_loading_location), pngs), \
-                    png_target_location)
-                current_total = current_total + 1
-                if current_total == total_png_per_char:
-                    break
+            if regex.fullmatch(pngs) is not None:
+                if current_train_img_total != total_png_training_chars:
+                    # print(os.path.join(os.path.abspath(png_loading_location), pngs))
+                    shutil.copy(os.path.join(os.path.abspath(png_loading_location), pngs), \
+                        training_location)
+                    current_train_img_total = current_train_img_total + 1
+                    #if current_total == total_png_per_char:
+                    #    break
+                elif current_test_img_total != total_png_testing_chars:
+                    shutil.copy(os.path.join(os.path.abspath(png_loading_location), pngs), \
+                        testing_location)
+                    current_test_img_total = current_test_img_total + 1
+            
 
-    trainKnnModel_ETL()
+    TrainSubsetWithKNN()
+    CreateAffineTestData()
 
-
-def trainKnnModel_ETL():
+def TrainSubsetWithKNN():
     print("Executing training ETL model.")
 
-    data_set = os.listdir(png_target_location)
+    data_set = os.listdir(training_location)
     dataset_size = len(data_set)
     x_train = np.empty(shape=[dataset_size, target_dimensions, target_dimensions])
     y_train = np.empty(shape=[dataset_size, 1])
-    re = regex.compile('\d*_(.*).png')
+    regex = re.compile('\d*_(.*).png')
 
     character_dict = dict()
     character_value = 0
     row_index = 0
     
     for entry in data_set:
-        filepath = os.path.join(png_target_location, entry)
+        filepath = os.path.join(training_location, entry)
         if os.path.exists(filepath):
             img = cv.imread(filepath)
             img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
             
-            # cv.imshow("Before", img)
+            #cv.imshow("Before", img)
 
-            img_height, img_width = img.shape
             roi_dim = FindROI(img)
             roi = img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
-            centered_roi = centerROI(roi, img_height, img_width)
+            centered_roi = RefitIntoOriginalImage(img, roi)
             
-            # cv.imshow("After", centered_roi)
-            # cv.waitKey()
-            # cv.destroyAllWindows()
+            #cv.imshow("After", centered_roi)
+            #cv.waitKey()
+            #cv.destroyAllWindows()
 
             target_img = cv.resize(centered_roi, (target_dimensions,target_dimensions), interpolation=cv.INTER_AREA)
-            character = re.match(entry).group(1)
+            character = regex.match(entry).group(1)
 
-            if perform_threshold:
+            if not disable_threshold:
                 ret, target_img = cv.threshold(target_img, threshold_value, 255, cv.THRESH_BINARY)
             
             # print(character)
@@ -95,6 +108,9 @@ def trainKnnModel_ETL():
                 # print(entry)
                 character_dict[character] = character_value
                 character_value = character_value + 1
+
+            os.remove(filepath)
+            cv.imwrite(os.path.join(training_location, "{}_".format(row_index) + character + ".png"), centered_roi)
 
             y_train[row_index] = character_dict[character]
             x_train[row_index] = target_img
@@ -119,27 +135,37 @@ def trainKnnModel_ETL():
         for key in character_dict:
             file.writelines(key + "," + str(character_dict[key]) + '\n')
         
+def CreateAffineTestData():
+    data_set = os.listdir(testing_location)
 
-def centerROI(roi, height, width):
-    base_image = np.zeros((height, width), np.uint8)
+    regex = re.compile("\d*_(.*).png")
 
-    half_height = height/2
-    half_width = width/2
+    character_dict = dict()
+    for x in target_characters:
+        character_dict[x] = 1
 
-    roi_height, roi_width = roi.shape
-    roi_half_height = roi_height / 2
-    roi_half_width = roi_width / 2
+    for entry in data_set:
+        
+        character = regex.match(entry).group(1)
+        img, height, width = LoadImage(os.path.join(testing_location, entry))
+        
+        roi_dim = FindROI(img)
+        roi = img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
+        centered_roi = RefitIntoOriginalImage(img, roi)
+        new_roi_dim = FindROI(centered_roi)
 
-    wriggle = math.floor(half_height - roi_half_height)
-    margin = math.floor(math.sqrt(height) + math.sqrt(wriggle)) # Something that scale with image fairly well.
+        roi_small = CreateROIScaledImage(centered_roi.copy(), new_roi_dim, .85)
+        roi_large = CreateROIScaledImage(centered_roi.copy(), new_roi_dim, 1.15)
+        roi_left_tilt = CreateTiltedImage(centered_roi.copy(), new_roi_dim, target_tilt)
+        roi_right_tilt = CreateTiltedImage(centered_roi.copy(), new_roi_dim, -target_tilt)
 
-    position_height = math.floor(half_height-roi_half_height)
-    position_width = math.floor(half_width-roi_half_width)
-
-    base_image[position_height:roi_height+position_height, position_width:roi_width+position_width] = roi
-
-    return base_image
+        os.remove(os.path.join(testing_location, entry))
+        cv.imwrite(os.path.join(testing_location, "{}_".format(character_dict[character]) + character + ".png"), centered_roi)
+        cv.imwrite(os.path.join(testing_location, "{}_".format(character_dict[character]+1) + character + ".png"), roi_small)
+        cv.imwrite(os.path.join(testing_location, "{}_".format(character_dict[character]+2) + character + ".png"), roi_large)
+        cv.imwrite(os.path.join(testing_location, "{}_".format(character_dict[character]+3) + character + ".png"), roi_left_tilt)
+        cv.imwrite(os.path.join(testing_location, "{}_".format(character_dict[character]+4) + character + ".png"), roi_right_tilt)
+        character_dict[character] = character_dict[character] + 5
 
 if __name__ == "__main__":
-    print("Hello!")
-    trainKNNSubset()
+    CreateSubsetDirectory()

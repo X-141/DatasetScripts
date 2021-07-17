@@ -4,14 +4,18 @@ import math
 
 # This script will do the following:
 # Rescale the image by 85% and 115%
-# Tilt the image Left by 15 degrees
-# Tilt the image Right by 15 degrees
+# Tilt the image Left by 1.0 degrees
+# Tilt the image Right by 1.0 degrees
 
 target_image = "Sample_A.png"
 flip_blackwhite = False
+disable_thresholding = False
+threshold_value = 50
+
+target_tilt = 6.0
 
 def LoadImage(aImagePath : str):
-    print("Loading Image")
+    #print("Loading Image")
     img = cv.imread(aImagePath)
 
     if flip_blackwhite:
@@ -107,13 +111,14 @@ def CreateROIScaledImage(img, roi, scalar):
 
     if new_x_dim > img.shape[0] or new_y_dim > img.shape[1]:
         print("Scalar size indicated would exceed base image dimension.")
-        return
+        return img
 
-    print("Original Dimensions: ({}, {})".format(x_dim, y_dim))
-    print("New dimensions: ({}, {})".format(new_x_dim, new_y_dim))
+    #print("Original Dimensions: ({}, {})".format(x_dim, y_dim))
+    #print("New dimensions: ({}, {})".format(new_x_dim, new_y_dim))
     
-    roi_rescale = cv.resize(roi, (new_x_dim, new_y_dim))
-    ret, new_roi = cv.threshold(roi_rescale, 80, 255, cv.THRESH_BINARY)
+    new_roi = cv.resize(roi, (new_x_dim, new_y_dim))
+    if not disable_thresholding:
+        ret, new_roi = cv.threshold(new_roi, threshold_value, 255, cv.THRESH_BINARY)
 
     new_img = RefitIntoOriginalImage(img, new_roi)
 
@@ -121,23 +126,34 @@ def CreateROIScaledImage(img, roi, scalar):
     return new_img
 
 def CreateTiltedImage(img, roi_dim, tilt_value):
+
+    # we scale down a bit to keep the roi within image bound.
+    scaled_down_image = CreateROIScaledImage(img, roi_dim, .90)
+    new_roi_dim = FindROI(scaled_down_image)
+
     # cv.imshow("CreateTiltedImage Before {}".format(tilt_value), img)
-    roi_center = tuple(np.array([roi_dim[3],roi_dim[1]])/2)
+    roi_center = tuple(np.array([new_roi_dim[3],new_roi_dim[1]])/2)
     # https://stackoverflow.com/questions/9041681/opencv-python-rotate-image-by-x-degrees-around-specific-point
     # by: nicodjimenez
     rotation_matrix = cv.getRotationMatrix2D(roi_center, tilt_value, 1.0)
 
-    roi_copy = img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
+    roi_copy = scaled_down_image[new_roi_dim[2]:new_roi_dim[3], new_roi_dim[0]:new_roi_dim[1]]
 
-    rotated_img = cv.warpAffine(roi_copy, rotation_matrix, (roi_dim[3],roi_dim[1]))
-    ret, rotated_img = cv.threshold(rotated_img, 80, 255, cv.THRESH_BINARY)
+    rotated_img = cv.warpAffine(roi_copy, rotation_matrix, (new_roi_dim[3],new_roi_dim[1]))
+    if not disable_thresholding:
+        ret, rotated_img = cv.threshold(rotated_img, threshold_value, 255, cv.THRESH_BINARY)
+
+    # need to do a quick check to see if rotated image exceeds dimensions
+    # cv.imshow("CreateTiltedImage After {}".format(tilt_value), rotated_img)
+    # cv.waitKey(0)
+    # cv.destroyAllWindows()
 
     new_roi = FindROI(rotated_img)
     new_roi_copy = rotated_img[new_roi[2]:new_roi[3], new_roi[0]:new_roi[1]]
     
     new_img = RefitIntoOriginalImage(img, new_roi_copy)
 
-    # cv.imshow("CreateTiltedImage After {}".format(tilt_value), new_img)
+    #cv.imshow("CreateTiltedImage After {}".format(tilt_value), new_img)
 
     return new_img
 
@@ -148,8 +164,8 @@ if __name__ == "__main__":
     roi_small = CreateROIScaledImage(img, roi_dim, .85)
     roi_large = CreateROIScaledImage(img, roi_dim, 1.15)
     
-    CreateTiltedImage(img, roi_dim, -15)
-    CreateTiltedImage(img, roi_dim, 15)
+    CreateTiltedImage(img, roi_dim, -target_tilt)
+    CreateTiltedImage(img, roi_dim, target_tilt)
     cv.waitKey(0)
     cv.destroyAllWindows()
 
