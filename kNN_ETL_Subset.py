@@ -6,15 +6,17 @@ import os
 import re
 import shutil
 
-from TransformationMethods import FindROI, LoadImage, RefitIntoOriginalImage, CreateROIScaledImage, CreateTiltedImage
+from TransformationMethods import FindROI, LoadImage, RefitIntoOriginalImage, CreateROIScaledImage, CreateTiltedImage, denoiseImage, thresholdBasic, thresholdOtsu
 
-png_loading_location = "NEWDATA/test/"
-target_location = "TargetSubset/"
-training_location = target_location + "training/"
-testing_location = target_location + "testing/"
+from ETL_Extraction import png_folder
 
-knn_file = target_location + "kNN_ETL_Subset.opknn"
-dict_file = target_location + "knnDictionary.txt"
+png_loading_location = png_folder
+target_location = "TargetSubset"
+training_location = os.path.join(target_location, "training")
+testing_location = os.path.join(target_location, "testing")
+
+knn_file = os.path.join(target_location, "kNN_ETL_Subset.opknn")
+dict_file = os.path.join(target_location, "kNNDictionary.txt")
 
 # We will be loading only 10 characters identified by their
 # pronunciation.
@@ -23,9 +25,7 @@ total_png_testing_chars = 25
 total_png_training_chars = 200 - total_png_testing_chars
 
 # Some globals to influence image transformation.
-target_dimensions = 32
-disable_threshold = False
-threshold_value = 50
+target_dimensions = 48
 
 target_tilt = 6.0
 
@@ -80,13 +80,13 @@ def TrainSubsetWithKNN():
     for entry in data_set:
         filepath = os.path.join(training_location, entry)
         if os.path.exists(filepath):
-            img = cv.imread(filepath)
-            img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+            img = LoadImage(filepath)
             
             #cv.imshow("Before", img)
-
-            roi_dim = FindROI(img)
-            roi = img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
+    
+            new_img = thresholdOtsu(img)
+            roi_dim = FindROI(new_img)
+            roi = new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
             centered_roi = RefitIntoOriginalImage(img, roi)
             
             #cv.imshow("After", centered_roi)
@@ -94,15 +94,13 @@ def TrainSubsetWithKNN():
             #cv.destroyAllWindows()
 
             target_img = cv.resize(centered_roi, (target_dimensions,target_dimensions), interpolation=cv.INTER_AREA)
+            target_img = thresholdBasic(target_img)
             character = regex.match(entry).group(1)
-
-            if not disable_threshold:
-                ret, target_img = cv.threshold(target_img, threshold_value, 255, cv.THRESH_BINARY)
             
             # print(character)
-            # cv.imshow("Example", target_img)
-            # cv.waitKey(0)
-            # cv.destroyAllWindows()
+            #cv.imshow("Example", target_img)
+            #cv.waitKey(0)
+            #cv.destroyAllWindows()
             
             if not (character in character_dict):
                 # print(entry)
@@ -147,17 +145,29 @@ def CreateAffineTestData():
     for entry in data_set:
         
         character = regex.match(entry).group(1)
-        img, height, width = LoadImage(os.path.join(testing_location, entry))
+        img = LoadImage(os.path.join(testing_location, entry))
         
-        roi_dim = FindROI(img)
-        roi = img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
+        #denoise_img = denoiseImage(img.copy())
+        #new_img = thresholdBasic(denoise_img)
+        new_img = thresholdOtsu(img.copy())
+        roi_dim = FindROI(new_img)
+        roi = new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
         centered_roi = RefitIntoOriginalImage(img, roi)
-        new_roi_dim = FindROI(centered_roi)
 
-        roi_small = CreateROIScaledImage(centered_roi.copy(), new_roi_dim, .85)
-        roi_large = CreateROIScaledImage(centered_roi.copy(), new_roi_dim, 1.15)
-        roi_left_tilt = CreateTiltedImage(centered_roi.copy(), new_roi_dim, target_tilt)
-        roi_right_tilt = CreateTiltedImage(centered_roi.copy(), new_roi_dim, -target_tilt)
+        roi_small = CreateROIScaledImage(img.copy(), .90)
+        roi_large = CreateROIScaledImage(img.copy(), 1.15)
+        roi_left_tilt = CreateTiltedImage(img.copy(), target_tilt)
+        roi_right_tilt = CreateTiltedImage(img.copy(), -target_tilt)
+
+        #cv.waitKey(0)
+        #cv.destroyAllWindows()
+
+        # these images are blacklisted due to threshold errors
+        # that get past current checks.
+        if character_dict[character] == 51 and character == "I":
+            os.remove(os.path.join(testing_location, entry))
+            character_dict[character] = character_dict[character] + 1
+            continue
 
         os.remove(os.path.join(testing_location, entry))
         cv.imwrite(os.path.join(testing_location, "{}_".format(character_dict[character]) + character + ".png"), centered_roi)
@@ -166,6 +176,7 @@ def CreateAffineTestData():
         cv.imwrite(os.path.join(testing_location, "{}_".format(character_dict[character]+3) + character + ".png"), roi_left_tilt)
         cv.imwrite(os.path.join(testing_location, "{}_".format(character_dict[character]+4) + character + ".png"), roi_right_tilt)
         character_dict[character] = character_dict[character] + 5
+
 
 if __name__ == "__main__":
     CreateSubsetDirectory()
