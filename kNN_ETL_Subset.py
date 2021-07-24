@@ -1,12 +1,10 @@
-import math
-from cv2 import data
 import numpy as np
 import cv2 as cv
 import os
 import re
 import shutil
 
-from TransformationMethods import findROI, loadImage, refitIntoOriginalImage, createROIScaledImage, CreateTiltedImage, denoiseImage, thresholdBasic, thresholdOtsu
+from TransformationMethods import findROI, loadImage, refitIntoOriginalImage, createROIScaledImage, createTiltedImage, denoiseImage, thresholdBasic, thresholdOtsu
 
 from ETL_Extraction import png_folder
 
@@ -156,8 +154,8 @@ def CreateAffineTestData():
 
         roi_small = createROIScaledImage(img.copy(), .90)
         roi_large = createROIScaledImage(img.copy(), 1.15)
-        roi_left_tilt = CreateTiltedImage(img.copy(), target_tilt)
-        roi_right_tilt = CreateTiltedImage(img.copy(), -target_tilt)
+        roi_left_tilt = createTiltedImage(img.copy(), target_tilt)
+        roi_right_tilt = createTiltedImage(img.copy(), -target_tilt)
 
         #cv.waitKey(0)
         #cv.destroyAllWindows()
