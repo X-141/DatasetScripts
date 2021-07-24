@@ -6,7 +6,7 @@ import os
 import re
 import shutil
 
-from TransformationMethods import FindROI, LoadImage, RefitIntoOriginalImage, CreateROIScaledImage, CreateTiltedImage, denoiseImage, thresholdBasic, thresholdOtsu
+from TransformationMethods import findROI, loadImage, refitIntoOriginalImage, createROIScaledImage, CreateTiltedImage, denoiseImage, thresholdBasic, thresholdOtsu
 
 from ETL_Extraction import png_folder
 
@@ -80,14 +80,14 @@ def TrainSubsetWithKNN():
     for entry in data_set:
         filepath = os.path.join(training_location, entry)
         if os.path.exists(filepath):
-            img = LoadImage(filepath)
+            img = loadImage(filepath)
             
             #cv.imshow("Before", img)
     
             new_img = thresholdOtsu(img)
-            roi_dim = FindROI(new_img)
+            roi_dim = findROI(new_img)
             roi = new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
-            centered_roi = RefitIntoOriginalImage(img, roi)
+            centered_roi = refitIntoOriginalImage(img, roi)
             
             #cv.imshow("After", centered_roi)
             #cv.waitKey()
@@ -145,17 +145,17 @@ def CreateAffineTestData():
     for entry in data_set:
         
         character = regex.match(entry).group(1)
-        img = LoadImage(os.path.join(testing_location, entry))
+        img = loadImage(os.path.join(testing_location, entry))
         
         #denoise_img = denoiseImage(img.copy())
         #new_img = thresholdBasic(denoise_img)
         new_img = thresholdOtsu(img.copy())
-        roi_dim = FindROI(new_img)
+        roi_dim = findROI(new_img)
         roi = new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]]
-        centered_roi = RefitIntoOriginalImage(img, roi)
+        centered_roi = refitIntoOriginalImage(img, roi)
 
-        roi_small = CreateROIScaledImage(img.copy(), .90)
-        roi_large = CreateROIScaledImage(img.copy(), 1.15)
+        roi_small = createROIScaledImage(img.copy(), .90)
+        roi_large = createROIScaledImage(img.copy(), 1.15)
         roi_left_tilt = CreateTiltedImage(img.copy(), target_tilt)
         roi_right_tilt = CreateTiltedImage(img.copy(), -target_tilt)
 

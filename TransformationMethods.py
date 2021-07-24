@@ -14,9 +14,27 @@ target_tilt = 6.0
 
 
 def denoiseImage(img):
+    """ denoiseImage(img):
+
+        General method encapsulating a method for removing noise from image.
+        Currently the denoising method used is cv.fastNLMeansDenoising.
+        h value is determined by h_value.
+    """
     return cv.fastNlMeansDenoising(img, None, h=h_value)
 
 def thresholdBasic(img):
+    """ thresholdBasic(img):
+
+        General method encapsulating a secondary method for thresholding an image.
+        Thresholding involves finding a value in an image:
+        if value is less than specified threshold_value -> assign 0 to value (black).
+        otherwise if value is greater than specified threshold value -> assign 255 to value (White).
+
+        This is an alternative method if thresholdOtsu() has issues thresholding image. Primarily
+        Otsu can cause issues finding the ROI.
+
+        @source: https://docs.opencv.org/4.5.2/d7/d4d/tutorial_py_thresholding.html
+    """
     # return cv.adaptiveThreshold(img, 255,
     #                                cv.ADAPTIVE_THRESH_GAUSSIAN_C,
     #                                cv.THRESH_BINARY, 23, -2)
@@ -24,11 +42,25 @@ def thresholdBasic(img):
     return target_img
 
 def thresholdOtsu(img):
+    """ thresholdOtsu(img):
+
+        General method encapsulating a primary method for thresholding an image.
+        Otsu thresholding is a bit more advance than regular global thresholding:
+        If given an image of black and white, Otsu thresholding will find the most
+        optimal thresholding value.
+
+        @source: https://docs.opencv.org/4.5.2/d7/d4d/tutorial_py_thresholding.html
+    """
     blur = cv.GaussianBlur(img,(5,5),0)
     ret, target_img = cv.threshold(blur, 0, 255 , cv.THRESH_BINARY+cv.THRESH_OTSU)
     return target_img
 
-def LoadImage(aImagePath : str):
+def loadImage(aImagePath : str):
+    """ LoadImage(aImagePath):
+
+        Standard method simplifying the need to load an image and converting
+        the colorspace (GRAYSCALE)
+    """
     #print("Loading Image")
     img = cv.imread(aImagePath)
 
@@ -43,7 +75,13 @@ def LoadImage(aImagePath : str):
 
     return img
 
-def FindROI(img):
+def findROI(img):
+    """ findROI(img):
+
+        Given a grayscale and thresholded image, find the space in the
+        image containing the drawn character. This drawn character space
+        is referred to as the ROI.
+    """
     height, width = img.shape
 
     # Set both values to some impossible dimesions
@@ -69,8 +107,15 @@ def FindROI(img):
     return (x_min, x_max, y_min, y_max)
 
 def translocateROI(roi, base_image, center_height, center_width):
+    """ translocateROI(roi, base_image, center_height, center_width):
+
+        Given an roi image and a base image, center the roi image inside the
+        base image.
+
+        Not meant to be used directly, instead use refitIntoOriginalImage(...)
+        to center a roi into an original image.
+    """
     roi_height, roi_width = roi.shape
-    # print(center_height, center_width)
     try:
         base_image[center_height:roi_height+center_height, center_width:roi_width+center_width] = roi
     except ValueError as ex:
@@ -78,7 +123,12 @@ def translocateROI(roi, base_image, center_height, center_width):
     return base_image
     #cv.imshow("Empty_"+str(roi.shape)+"_"+str(center_height) + "_" + str(center_width), base_image)
 
-def RefitIntoOriginalImage(img, roi_img):
+def refitIntoOriginalImage(img, roi_img):
+    """ refitIntoOriginalImage(img, roi_img):
+
+        given a img and a roi_img, prepare necessary data to complete
+        this transformation.
+    """
     roi_height, roi_width = roi_img.shape
 
     roi_half_height = roi_height / 2
@@ -99,8 +149,12 @@ def RefitIntoOriginalImage(img, roi_img):
         raise ex
 
 # https://www.tutorialkart.com/opencv/python/opencv-python-resize-image/
-def CreateROIScaledImage(img, scalar):
+def createROIScaledImage(img, scalar):
+    """ createROIScaledImage(img, scalar)
 
+        Given an unprocessed image, rescale the images ROI by the
+        scalar value.
+    """
     height, width = img.shape
 
     new_x_dim = math.floor(width * scalar)
@@ -109,10 +163,10 @@ def CreateROIScaledImage(img, scalar):
     resized_img = cv.resize(img, (new_x_dim, new_y_dim))
     new_img = thresholdOtsu(resized_img)
 
-    roi_dim = FindROI(new_img)
+    roi_dim = findROI(new_img)
     
     try:
-        new_img = RefitIntoOriginalImage(img, new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]])
+        new_img = refitIntoOriginalImage(img, new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]])
     except ValueError as ex:
         # cv.imshow("Original {}".format(scalar), img)
         # cv.imshow("resized {}".format(scalar), resized_img)
@@ -123,8 +177,8 @@ def CreateROIScaledImage(img, scalar):
         #cv.destroyAllWindows()
         print(ex)
         print("\tResolving with harsher thresholding.")
-        roi_dim = FindROI(new_img)
-        new_img = RefitIntoOriginalImage(img, new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]])
+        roi_dim = findROI(new_img)
+        new_img = refitIntoOriginalImage(img, new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]])
 
     #print("Original Dimensions: ({}, {})".format(width, height))
     #print("New dimensions: ({}, {})".format(new_x_dim, new_y_dim))
@@ -144,26 +198,25 @@ def CreateROIScaledImage(img, scalar):
     return new_img
 
 
-def CreateTiltedImage(img, tilt_value):
-    image_center = tuple(np.array(img.shape)/2)
+def createTiltedImage(img, tilt_value):
+    """ createTiltedImage(img, tilt_value):
 
-    #rotation_matrix = cv.getRotationMatrix2D(image_center, tilt_value, 1.0)
-    #rotated_img = cv.warpAffine(img, rotation_matrix, img.shape)
-    #denoise_img = denoiseImage(rotated_img)
-    #new_img = thresholdImage(denoise_img)
+        given a img, adjust its roi value by tilt_value degrees.
+    """
+    image_center = tuple(np.array(img.shape)/2)
 
     rotation_matrix = cv.getRotationMatrix2D(image_center, tilt_value, 1.0)
     rotated_img = cv.warpAffine(img, rotation_matrix, img.shape)
     new_img = thresholdOtsu(rotated_img)
 
     try:
-        roi_dim = FindROI(new_img)
-        new_img = RefitIntoOriginalImage(img, new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]])
+        roi_dim = findROI(new_img)
+        new_img = refitIntoOriginalImage(img, new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]])
     except ValueError:
         # Backup method to use harsher thresholding.
         new_img = thresholdBasic(rotated_img)
-        roi_dim = FindROI(new_img)
-        new_img = RefitIntoOriginalImage(img, new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]])
+        roi_dim = findROI(new_img)
+        new_img = refitIntoOriginalImage(img, new_img[roi_dim[2]:roi_dim[3], roi_dim[0]:roi_dim[1]])
 
     #cv.imshow("Before {}".format(tilt_value), img)
     #cv.imshow("After {}".format(tilt_value), new_img)
@@ -172,12 +225,13 @@ def CreateTiltedImage(img, tilt_value):
     return new_img
 
 
-
+# This is just a test method to double check if the transformation methods
+# work.
 if __name__ == "__main__":
-    img = LoadImage("11_A.png")
+    img = loadImage("11_A.png")
     
-    CreateROIScaledImage(img, .85)
-    CreateROIScaledImage(img, 1.4)
+    createROIScaledImage(img, .85)
+    createROIScaledImage(img, 1.4)
     
     #CreateTiltedImage(img, -target_tilt)
     #CreateTiltedImage(img, target_tilt)
